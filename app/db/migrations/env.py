@@ -6,13 +6,13 @@ metadata — из `app.db.base.Base`.
 
 from __future__ import annotations
 
+import os
 from logging.config import fileConfig
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 # Импорт моделей нужен, чтобы Base.metadata содержала все таблицы.
-from app.core.config import get_settings
 from app.db.base import Base
 from app.db import models  # noqa: F401  -- регистрация моделей в metadata
 
@@ -21,8 +21,16 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.db_dsn_sync)
+# Источник URL приоритетно (для тестов и кастомных запусков):
+#   1) переменная окружения ALEMBIC_DATABASE_URL,
+#   2) sync DSN из Settings (рантайм/прод).
+override_url = os.getenv("ALEMBIC_DATABASE_URL")
+if override_url:
+    config.set_main_option("sqlalchemy.url", override_url)
+else:
+    from app.core.config import get_settings
+
+    config.set_main_option("sqlalchemy.url", get_settings().db_dsn_sync)
 
 target_metadata = Base.metadata
 
