@@ -1,0 +1,62 @@
+# Тур 3 — «Где логика»: 5 вопросов, картинка + 2 варианта (correct_index 0 или 1)
+# Положите реальные изображения в assets/round3/q1.jpg … q5.jpg (или замените пути).
+round_code: R3
+questions:
+  - code: R3Q1
+    order_index: 1
+    topic_code: null
+    points: 100
+    payload:
+      text: "Доктор измеряет давление + техник проверяет масло в автомобиле"
+      options:
+        - "Чекап"
+        - "Гарантия"
+      correct_index: 0
+      feedback: "Кстати, чекап — это бесплатная диагностика и чистка IQOS в Q STORE!"
+      image_path: "assets/round3/q1.jpg"
+  - code: R3Q2
+    order_index: 2
+    topic_code: null
+    points: 100
+    payload:
+      text: "Селфи-стик + дезодорант-стик + стик-бальзам для губ"
+      options:
+        - "Стики IQOS"
+        - "Щёточка для чистки IQOS"
+      correct_index: 0
+      feedback: "А стики IQOS — это целая линейка вкусов: от классики до яркой ароматики."
+      image_path: "assets/round3/q2.jpg"
+  - code: R3Q3
+    order_index: 3
+    topic_code: null
+    points: 100
+    payload:
+      text: "Ночной клуб + неочевидная буква Q (из образов тех же людей в клубе)"
+      options:
+        - "Q CLUB"
+        - "День рождения"
+      correct_index: 0
+      image_path: "assets/round3/q3.jpg"
+  - code: R3Q4
+    order_index: 4
+    topic_code: null
+    points: 100
+    payload:
+      text: "Солнечная панель + приборная панель автомобиля + плазменная ТВ-панель"
+      options:
+        - "Персонализация чехла"
+        - "Сменная панель IQOS"
+      correct_index: 1
+      image_path: "assets/round3/q4.jpg"
+  - code: R3Q5
+    order_index: 5
+    topic_code: null
+    points: 100
+    payload:
+      text: "Поэт Александр Блок + строительный блок (кирпич) + блок удара в карате"
+      options:
+        - "Набор аксессуаров"
+        - "Блок стиков IQOS"
+      correct_index: 1
+      feedback: "Блок — 10 пачек любимого вкуса. Определился — бери сразу блок."
+      image_path: "assets/round3/q5.jpg"
