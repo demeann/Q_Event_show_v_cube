@@ -1,13 +1,24 @@
 """Окружение Alembic.
 
-Использует sync-DSN (`mysql+pymysql://...`), DSN тянется из `Settings`,
-metadata — из `app.db.base.Base`.
+Использует sync-DSN (`mysql+pymysql://...`), metadata — из `app.db.base.Base`.
+
+Порядок выбора URL (чтобы миграции не требовали `BOT_TOKEN` и прочего из бота):
+
+1. :envvar:`ALEMBIC_DATABASE_URL` — явный URL (тесты, отладка).
+2. Переменные :envvar:`DB_HOST` / :envvar:`DB_PORT` / :envvar:`DB_NAME` /
+   :envvar:`DB_USER` / :envvar:`DB_PASSWORD` после загрузки корневого ``.env``
+   (достаточно для ``alembic upgrade head``).
+3. Полный :class:`app.core.config.Settings` (как у запущенного бота).
 """
 
 from __future__ import annotations
 
 import os
 from logging.config import fileConfig
+from pathlib import Path
+from urllib.parse import quote_plus
+
+from dotenv import load_dotenv
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -16,21 +27,58 @@ from sqlalchemy import engine_from_config, pool
 from app.db.base import Base
 from app.db import models  # noqa: F401  -- регистрация моделей в metadata
 
+# .../app/db/migrations/env.py -> корень репозитория на 3 уровня вверх
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Источник URL приоритетно (для тестов и кастомных запусков):
-#   1) переменная окружения ALEMBIC_DATABASE_URL,
-#   2) sync DSN из Settings (рантайм/прод).
-override_url = os.getenv("ALEMBIC_DATABASE_URL")
-if override_url:
-    config.set_main_option("sqlalchemy.url", override_url)
-else:
+
+def _build_mysql_sync_dsn_from_db_env() -> str | None:
+    """Собрать DSN из переменных окружения (без валидации всего Settings)."""
+    db_name = os.getenv("DB_NAME")
+    db_user = os.getenv("DB_USER")
+    # пароль может быть пустой строкой на некоторых хостингах
+    if db_name is None or db_user is None or "DB_PASSWORD" not in os.environ:
+        return None
+
+    host = os.getenv("DB_HOST", "localhost")
+    port = os.getenv("DB_PORT", "3306")
+    password = os.getenv("DB_PASSWORD", "")
+
+    return (
+        f"mysql+pymysql://{quote_plus(db_user)}:{quote_plus(password)}"
+        f"@{host}:{port}/{quote_plus(db_name)}?charset=utf8mb4"
+    )
+
+
+def _resolve_sqlalchemy_url() -> str:
+    load_dotenv(_PROJECT_ROOT / ".env", override=False)
+
+    override_url = os.getenv("ALEMBIC_DATABASE_URL")
+    if override_url:
+        return override_url
+
+    db_url = _build_mysql_sync_dsn_from_db_env()
+    if db_url:
+        return db_url
+
     from app.core.config import get_settings
 
-    config.set_main_option("sqlalchemy.url", get_settings().db_dsn_sync)
+    try:
+        return get_settings().db_dsn_sync
+    except Exception as e:
+        raise RuntimeError(
+            "Alembic: не удалось получить URL БД. Создайте в корне репозитория файл "
+            "`.env` (см. `.env.example`) и как минимум заполните DB_HOST, DB_PORT, "
+            "DB_NAME, DB_USER, DB_PASSWORD — этого достаточно для `alembic upgrade head`. "
+            "Либо задайте переменную окружения ALEMBIC_DATABASE_URL."
+        ) from e
+
+
+config.set_main_option("sqlalchemy.url", _resolve_sqlalchemy_url())
 
 target_metadata = Base.metadata
 
