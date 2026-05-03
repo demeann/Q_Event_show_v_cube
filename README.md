@@ -7,7 +7,7 @@
 
 ## Стек
 
-- Python 3.11
+- Python 3.13 (минимум 3.11)
 - aiogram 3.x (long polling в MVP, webhook опционально)
 - SQLAlchemy 2.x (async) + aiomysql / PyMySQL
 - Alembic (миграции)
@@ -36,7 +36,7 @@ materials/             # исходные ТЗ + нормализованная 
 
 1. Создать виртуальное окружение и установить зависимости:
    ```bash
-   python3.11 -m venv .venv
+   python3.13 -m venv .venv
    source .venv/bin/activate
    pip install --upgrade pip
    pip install -r requirements-dev.txt

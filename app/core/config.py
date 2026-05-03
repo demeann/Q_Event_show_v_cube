@@ -16,10 +16,10 @@ from __future__ import annotations
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # Путь к корню проекта (на 3 уровня выше: app/core/config.py -> ../../..).
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -49,10 +49,12 @@ class Settings(BaseSettings):
     # Дата начала Дня 1 Тура 1 в МСК. Расписание остальных туров и рассылок
     # высчитывается от этой даты.
     game_start_date_msk: date
-    allowed_email_domains: list[str] = Field(default_factory=list)
+    # NoDecode отключает встроенный JSON-парсер pydantic-settings для list-полей,
+    # чтобы наш `field_validator(mode="before")` получил сырую CSV-строку.
+    allowed_email_domains: Annotated[list[str], NoDecode] = Field(default_factory=list)
 
     # ---------- Admin ----------
-    admin_ids: list[int] = Field(default_factory=list)
+    admin_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)
 
     # ---------- Logging ----------
     log_level: str = "INFO"
