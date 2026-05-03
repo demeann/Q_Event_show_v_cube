@@ -3,7 +3,7 @@ aiogram==3.13.1
 
 # --- Config & validation ---
 pydantic==2.9.2
-pydantic-settings==2.6.1
+pydantic-settings==2.7.1
 python-dotenv==1.0.1
 
 # --- Database (async + sync drivers) ---

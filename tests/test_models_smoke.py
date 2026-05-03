@@ -48,9 +48,8 @@ def test_users_columns():
     }
     assert expected.issubset(cols), f"missing: {expected - cols}"
 
-    # Уникальность telegram_user_id
-    uq = {tuple(c.name for c in cons.columns) for cons in users.constraints if cons.__class__.__name__ == "UniqueConstraint"}
-    assert ("telegram_user_id",) in uq
+    # `unique=True` в mapped_column создаёт UNIQUE-индекс на колонке.
+    assert users.columns["telegram_user_id"].unique is True
 
 
 def test_rounds_columns():
@@ -62,9 +61,7 @@ def test_rounds_columns():
     expected = {"id", "code", "name", "starts_at", "ends_at", "status", "created_at", "updated_at"}
     assert expected.issubset(cols), f"missing: {expected - cols}"
 
-    # Уникальность code
-    uq = {tuple(c.name for c in cons.columns) for cons in rounds.constraints if cons.__class__.__name__ == "UniqueConstraint"}
-    assert ("code",) in uq
+    assert rounds.columns["code"].unique is True
 
 
 def test_round_enums_present():
