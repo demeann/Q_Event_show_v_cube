@@ -27,13 +27,26 @@ from sqlalchemy import engine_from_config, pool
 from app.db.base import Base
 from app.db import models  # noqa: F401  -- регистрация моделей в metadata
 
-# .../app/db/migrations/env.py -> корень репозитория на 3 уровня вверх
+# .../app/db/migrations/env.py → корень репозитория: migrations → db → app → корень
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+
+def _load_env_files() -> None:
+    """Подхватить переменные из .env (не перетирать уже выставленные в shell)."""
+    root_env = _PROJECT_ROOT / ".env"
+    cwd_env = Path.cwd() / ".env"
+    if root_env.is_file():
+        load_dotenv(root_env, override=False)
+    if cwd_env.is_file() and cwd_env.resolve() != root_env.resolve():
+        load_dotenv(cwd_env, override=False)
+    # Последний шанс — «умный» поиск .env от текущей директории
+    if not root_env.is_file() and not cwd_env.is_file():
+        load_dotenv(override=False)
 
 
 def _build_mysql_sync_dsn_from_db_env() -> str | None:
@@ -55,7 +68,7 @@ def _build_mysql_sync_dsn_from_db_env() -> str | None:
 
 
 def _resolve_sqlalchemy_url() -> str:
-    load_dotenv(_PROJECT_ROOT / ".env", override=False)
+    _load_env_files()
 
     override_url = os.getenv("ALEMBIC_DATABASE_URL")
     if override_url:
@@ -70,11 +83,25 @@ def _resolve_sqlalchemy_url() -> str:
     try:
         return get_settings().db_dsn_sync
     except Exception as e:
+        root_env = _PROJECT_ROOT / ".env"
+        cwd_env = Path.cwd() / ".env"
+        checks = [
+            f"ожидался .env в корне репозитория: {root_env} "
+            f"({'есть' if root_env.is_file() else 'нет файла'})",
+            f".env в текущей директории ({cwd_env}): "
+            f"{'есть' if cwd_env.is_file() else 'нет файла'}",
+            f"DB_NAME={'задан' if os.getenv('DB_NAME') else 'не задан'}",
+            f"DB_USER={'задан' if os.getenv('DB_USER') else 'не задан'}",
+            f"DB_PASSWORD={'ключ в окружении есть' if 'DB_PASSWORD' in os.environ else 'нет ключа DB_PASSWORD'}",
+        ]
         raise RuntimeError(
-            "Alembic: не удалось получить URL БД. Создайте в корне репозитория файл "
-            "`.env` (см. `.env.example`) и как минимум заполните DB_HOST, DB_PORT, "
-            "DB_NAME, DB_USER, DB_PASSWORD — этого достаточно для `alembic upgrade head`. "
-            "Либо задайте переменную окружения ALEMBIC_DATABASE_URL."
+            "Alembic: не удалось получить URL БД.\n"
+            "Скопируй `.env.example` → `.env` в корень `Q_Event_show_v_cube`, "
+            "заполни DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD и снова "
+            "запусти `alembic upgrade head` из корня репозитория.\n"
+            "Либо выставь одну переменную ALEMBIC_DATABASE_URL=mysql+pymysql://...\n"
+            "\nПроверки:\n• "
+            + "\n• ".join(checks)
         ) from e
 
 
