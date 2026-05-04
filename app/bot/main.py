@@ -10,6 +10,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramNetworkError
+from aiogram.types import BotCommand
 
 from app.bot.middlewares.access import AccessMiddleware
 from app.bot.router import get_root_router
@@ -36,6 +37,13 @@ async def _run() -> None:
     dp = Dispatcher()
     dp.update.outer_middleware(AccessMiddleware())
     dp.include_router(get_root_router())
+
+    await bot.set_my_commands(
+        [
+            BotCommand(command="start", description="Регистрация и профиль"),
+            BotCommand(command="play", description="Играть в активный тур"),
+        ]
+    )
 
     log.info(
         "Bot polling started (parse_mode=HTML, http_timeout=%ss)",
