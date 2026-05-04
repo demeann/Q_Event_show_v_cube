@@ -93,6 +93,7 @@ async def cmd_help(message: Message) -> None:
     await message.answer(
         "Я бот «Шоу в кубе» (Q CLUB).\n\n"
         "/start — регистрация по корпоративному email\n"
+        "/play — начать активный тур (сейчас поддержан Тур 1)\n"
         "/cancel — отменить ввод email\n"
         "/help — эта подсказка"
     )

@@ -11,6 +11,6 @@ router = Router(name="main_menu")
 @router.message(F.text)
 async def placeheld_tours(message: Message) -> None:
     await message.answer(
-        "Пока туры подключаются к боту. Совсем скоро здесь можно будет сыграть "
-        "во все три дня «Шоу в кубе». Следи за новостями Q CLUB!"
+        "Чтобы сыграть в активный тур, отправь команду /play.\n\n"
+        "Если сейчас не игровое окно, бот подскажет — следи за датами «Шоу в кубе» в Q CLUB."
     )
