@@ -1,0 +1,63 @@
+# Тур 1 — «Кто хочет стать миллионером» (5 вопросов, 4 варианта, баллы = 100 за верный)
+round_code: R1
+questions:
+  - code: R1Q1
+    order_index: 1
+    topic_code: null
+    points: 100
+    payload:
+      text: "Какие две новинки появились в Q CLUB весной 2025?"
+      options:
+        - "Бассейн на крыше Q STORE + бесконтактная доставка"
+        - "Карта лояльности + Q CLUB PLAY"
+        - "Персональный астролог"
+        - "Робот-консультант + VR-примерка аксессуаров"
+      correct_index: 1
+  - code: R1Q2
+    order_index: 2
+    topic_code: null
+    points: 100
+    payload:
+      text: "Сколько спецпредложений доступно участнику Q CLUB в каждой волне?"
+      options:
+        - "1 — «один, совсем один»"
+        - "2 — идеальная пара, как кофе и утро"
+        - "7 — по одному на каждый день недели"
+        - "100 — мы же щедрые!"
+      correct_index: 1
+  - code: R1Q3
+    order_index: 3
+    topic_code: null
+    points: 100
+    payload:
+      text: "Как получить +1 дополнительное спецпредложение?"
+      options:
+        - "Написать «пожалуйста» три раза в поддержку"
+        - "Выполнить задание"
+        - "Посмотреть в глазок Q STORE и подмигнуть"
+        - "Пройти Q-квест"
+      correct_index: 1
+  - code: R1Q4
+    order_index: 4
+    topic_code: null
+    points: 100
+    payload:
+      text: "Где доступен Q CLUB PLAY (Три-в-ряд)?"
+      options:
+        - "В app store"
+        - "В любом браузере"
+        - "Только в Telegram"
+        - "В Q STORE, но только по четвергам"
+      correct_index: 2
+  - code: R1Q5
+    order_index: 5
+    topic_code: null
+    points: 100
+    payload:
+      text: "Какой комплимент получают участники Q CLUB в Q STORE?"
+      options:
+        - "Обнимашки от консультанта"
+        - "Кофе или вода"
+        - "Бесплатный стик и напутственное слово"
+        - "Сертификат «Вы великолепны» в рамочке"
+      correct_index: 1

@@ -1,0 +1,29 @@
+# Локальная MySQL 8 для разработки на Mac/Windows/Linux.
+# Запуск: docker compose up -d
+# Затем в `.env`: DB_HOST=127.0.0.1 DB_PORT=3306 (см. блок «Локальная БД в Docker» в `.env.example`).
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: qclub_mysql_dev
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: rootdev
+      MYSQL_DATABASE: qclub_dev
+      MYSQL_USER: qclub
+      MYSQL_PASSWORD: qclub_dev
+    ports:
+      - "3306:3306"
+    volumes:
+      - qclub_mysql_data:/var/lib/mysql
+    command: >
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-prootdev"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 15s
+
+volumes:
+  qclub_mysql_data:
