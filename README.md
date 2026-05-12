@@ -25,10 +25,9 @@ app/
   db/                  # модели, репозитории, миграции
   services/            # бизнес-логика (туры, победители, рассылки, отчёты)
 content/               # YAML с вопросами и шаблонами рассылок
-assets/round3/         # картинки для Тура 3 (q1.jpg … q5.jpg — см. `content/round3.yaml`)
+assets/round3/         # картинки для Тура 3 (q1.jpg … q3.jpg — см. `content/round3.yaml`)
 scripts/               # CLI-утилиты (seed, ручной запуск победителей и т.п.)
 tests/                 # pytest
-deploy/                # инструкции и скрипты деплоя
 materials/             # исходные ТЗ + нормализованная версия
 ```
 
@@ -100,7 +99,7 @@ docker compose ps   # дождаться состояния healthy для се�
 
    **Админка в боте** (Telegram `user_id` из `ADMIN_IDS` в `.env`): `/admin_help`, `/admin_stats`, `/export_csv R1`, `/export_xlsx R1` (R1/R2/R3).
 
-   Команда **`/play`** запускает **активный тур** по окну в БД (дни 1–3 → Тур 1, 4–6 → Тур 2, 7–9 → Тур 3; см. `GAME_START_DATE_MSK` и `seed_content`). Вне окна бот сообщит, что тура нет. Тур 3 показывает **фото** из `assets/round3/` (пути в `content/round3.yaml`); если файла нет, вопрос уходит текстом с пометкой.
+   Команда **`/play`** запускает **активный тур** по окну строки в таблице `rounds` в БД (дни 1–3 → Тур 1, 4–6 → Тур 2, 7–9 → Тур 3; см. `GAME_START_DATE_MSK` и `seed_content`). Вне окна бот сообщит, что тура нет. Тур 3 показывает **фото** из `assets/round3/` (пути в `content/round3.yaml`); если файла нет, вопрос уходит текстом с пометкой. На проде **`RUN_MODE=webhook`** и Nginx — см. `.env.example` и раздел «Деплой» ниже.
 
 ## Тесты
 
@@ -110,7 +109,7 @@ pytest
 
 ## Деплой
 
-См. [`deploy/README.md`](deploy/README.md) (появится на Шаге 12).
+Кратко: на VPS поднимаются **MySQL**, процесс **`python -m app.bot.main`**, **Nginx** с **HTTPS** и прокси **POST** на путь из **`WEBHOOK_PATH`** → **`WEBHOOK_LISTEN_HOST:WEBHOOK_LISTEN_PORT`**. В **`.env`**: **`RUN_MODE=webhook`**, **`WEBHOOK_BASE_URL=https://…`** (без пути), **`WEBHOOK_SECRET`** (рекомендуется), плюс **`DB_*`**, **`BOT_TOKEN`**. После выкладки: **`alembic upgrade head`**, **`python -m scripts.seed_content`**, перезапуск сервиса (например systemd).
 
 ## Прогресс реализации
 
@@ -123,6 +122,6 @@ pytest
 - [x] Шаг 7. Тур 1 «Миллионер»
 - [x] Шаг 8. Тур 2 «Своя игра»
 - [x] Шаг 9. Тур 3 «Где логика»
-- [x] Шаг 10. Алгоритм победителей + автозапуск
+- [x] Шаг 10. Алгоритм победителей + автозапуск (планировщик в `app/bot/main.py`)
 - [x] Шаг 11. Рассылки + админка + выгрузки
-- [ ] Шаг 12. Деплой-чеклист
+- [x] Шаг 12. Деплой: webhook в коде, переменные в `.env.example`, см. раздел «Деплой» выше
