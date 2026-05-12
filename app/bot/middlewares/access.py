@@ -36,7 +36,7 @@ def _public_command_text(message: Message) -> str | None:
 
 
 class AccessMiddleware(BaseMiddleware):
-    """Пропускает /start, /help, /cancel, /play, админов и шаг ввода email; остальное — только с verified."""
+    """Пропускает /start, /play, админов и шаг ввода email; остальное — только с verified."""
 
     async def __call__(
         self,
@@ -62,7 +62,7 @@ class AccessMiddleware(BaseMiddleware):
         msg = event.message
         if msg and msg.text:
             cmd = _public_command_text(msg)
-            if cmd in ("/start", "/help", "/cancel", "/play"):
+            if cmd in ("/start", "/play", "/admin_reset"):
                 return await handler(event, data)
 
         async with get_session() as session:
@@ -84,7 +84,7 @@ class AccessMiddleware(BaseMiddleware):
             return await handler(event, data)
 
         text = (
-            "Чтобы участвовать в «Шоу в кубе», нужен корпоративный email "
+            "Чтобы участвовать в «Конкурсе в кубе», нужен корпоративный email "
             "на домене <b>@pmru.com</b> или <b>@contracted.pmru.com</b>.\n\n"
             "Нажми /start — проверим адрес и откроем доступ."
         )

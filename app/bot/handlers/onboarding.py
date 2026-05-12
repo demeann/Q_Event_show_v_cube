@@ -6,7 +6,8 @@ import logging
 from datetime import UTC, datetime
 
 from aiogram import F, Router
-from aiogram.filters import Command, CommandStart
+from aiogram.filters import CommandStart
+from aiogram.filters.command import CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 
@@ -22,24 +23,39 @@ log = logging.getLogger(__name__)
 router = Router(name="onboarding")
 
 _WELCOME_NEW = (
-    "Привет! Это бот Q CLUB — игры «Шоу в кубе».\n\n"
-    "Чтобы присоединиться, пришли <b>корпоративный email</b> "
-    "на домене <code>@pmru.com</code> или <code>@contracted.pmru.com</code>. "
-    "Коды подтверждения не нужны — мы просто проверим домен.\n\n"
-    "Напиши адрес одним сообщением. Отмена: /cancel."
+    'Добро пожаловать в чат-бот для сотрудников Компании ООО "ФМСМ".\n\n'
+    "Внимание! Не передавайте полученный QR-код посторонним лицам.\n\n"
+    "Чтобы начать - введи свою почту в поле ввода сообщения:"
+)
+
+_EMAIL_ACCEPTED = (
+    'Добро пожаловать в "Конкурс в кубе"!\n'
+    "Ты можешь вспомнить лучшие моменты яркой трёхлетней истории программы лояльности "
+    "Q CLUB и получить шанс выиграть классный приз! Тебя будут ждать три тура: "
+    "14.05, 18.05 и 20.05 - мы пришлём напоминания, чтобы ты точно не "
+    "пропустил начало. Участвуй в каждом туре и зарабатывай баллы. Желаем тебе удачи!"
 )
 
 _WELCOME_BACK = (
     "С возвращением! Ты уже в игре с email <b>{email}</b>.\n\n"
-    "Туры и кнопки появятся в следующих обновлениях — следи за объявлениями в Q CLUB."
+    "Туры «Конкурса в кубе» доступны через /play — следи за датами старта в Q CLUB."
+)
+
+_INVITE_REQUIRED = (
+    "Бот доступен только по пригласительной ссылке.\n\n"
+    "Открой ссылку из письма или сообщения от организаторов (формат: "
+    "<code>t.me/...</code> с параметром <code>start</code>). "
+    "Если ссылка есть, нажми её ещё раз и затем «Запустить» / Start."
 )
 
 
 @router.message(CommandStart())
-async def cmd_start(message: Message, state: FSMContext) -> None:
+async def cmd_start(message: Message, state: FSMContext, command: CommandObject) -> None:
     settings = get_settings()
     if message.from_user is None:
         return
+
+    start_payload = (command.args or "").strip()
 
     if settings.is_admin(message.from_user.id):
         async with get_session() as session:
@@ -84,25 +100,24 @@ async def cmd_start(message: Message, state: FSMContext) -> None:
             await message.answer(_WELCOME_BACK.format(email=user.email))
             return
 
+        if settings.invite_only and not settings.invite_start_tokens:
+            log.error("INVITE_ONLY=true, но INVITE_START_TOKENS пуст — закройте дыру в конфиге.")
+            await message.answer(
+                "Регистрация через бота временно недоступна. Напиши в поддержку Q CLUB."
+            )
+            await state.clear()
+            return
+
+        if settings.invite_link_enforced():
+            if user.invite_gate_passed_at is None:
+                if start_payload not in settings.invite_start_token_set:
+                    await message.answer(_INVITE_REQUIRED)
+                    await state.clear()
+                    return
+                user.invite_gate_passed_at = datetime.now(UTC).replace(tzinfo=None)
+
         await state.set_state(OnboardingStates.waiting_email)
         await message.answer(_WELCOME_NEW)
-
-
-@router.message(Command("help"))
-async def cmd_help(message: Message) -> None:
-    await message.answer(
-        "Я бот «Шоу в кубе» (Q CLUB).\n\n"
-        "/start — регистрация по корпоративному email\n"
-        "/play — начать активный тур (сейчас поддержан Тур 1)\n"
-        "/cancel — отменить ввод email\n"
-        "/help — эта подсказка"
-    )
-
-
-@router.message(Command("cancel"))
-async def cmd_cancel(message: Message, state: FSMContext) -> None:
-    await state.clear()
-    await message.answer("Ок, остановились. Когда будешь готов — снова /start.")
 
 
 @router.message(OnboardingStates.waiting_email, F.text)
@@ -148,10 +163,10 @@ async def process_email(message: Message, state: FSMContext) -> None:
                 await message.answer(
                     "Этот домен не подходит. Нужен корпоративный адрес на "
                     "<code>@pmru.com</code> или <code>@contracted.pmru.com</code>.\n"
-                    "Попробуй другой email или напиши /cancel."
+                    "Попробуй другой email."
                 )
             else:
-                await message.answer("Не удалось проверить адрес. Попробуй ещё раз или /cancel.")
+                await message.answer("Не удалось проверить адрес. Попробуй ещё раз.")
             log.info(
                 "email_reject uid=%s reason=%s",
                 message.from_user.id,
@@ -165,10 +180,7 @@ async def process_email(message: Message, state: FSMContext) -> None:
         user.email_verified_at = now
 
     await state.clear()
-    await message.answer(
-        "Отлично, email принят — добро пожаловать в «Шоу в кубе»!\n\n"
-        "Дальше здесь появятся туры и кнопки — пока можешь просто ждать старта."
-    )
+    await message.answer(_EMAIL_ACCEPTED)
 
 
 @router.message(OnboardingStates.waiting_email)

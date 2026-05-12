@@ -1,12 +1,14 @@
-"""Тур 1 «Кто хочет стать миллионером»: ответы по callback."""
+"""Тур 3 «Где логика»: картинка + два варианта ответа (callback)."""
 
 from __future__ import annotations
 
+import logging
+from pathlib import Path
 from typing import Any
 
 from aiogram import Router
 from aiogram.filters.callback_data import CallbackData
-from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.types import CallbackQuery, FSInputFile, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from sqlalchemy import select
 
 from app.bot.gates import gate_playable_user
@@ -22,30 +24,28 @@ from app.services.round1_play import (
 )
 from app.services.round_schedule import get_playable_round_now
 
-router = Router(name="round1")
+log = logging.getLogger(__name__)
 
-_R1_INTRO = (
-    "Мы начинаем! Добро пожаловать в первый тур!\n\n"
-    "Тут всё серьёзно: четыре варианта, один верный, ноль подсказок от зала. "
-    "Ну, почти ноль. Поехали?"
+router = Router(name="round3")
+
+_R3_INTRO = (
+    "Привет! Скучал? А вот и мы! Встречай финальный тур нашего Конкурса в Кубе!\n\n"
+    "Смотри на картинки, включай ассоциации и выбирай ответ.\n"
+    "<tg-spoiler><i>Подсказка: Q CLUB рядом, но не всё так очевидно. Баллы не отнимаются — "
+    "мы добрые до конца.</i></tg-spoiler>"
 )
 
 
-class R1Forward(CallbackData, prefix="r1fwd"):
+class R3Go(CallbackData, prefix="r3go"):
     step: str = "go"
 
 
-class R1Pick(CallbackData, prefix="r1"):
+class R3Pick(CallbackData, prefix="r3"):
     qid: int
     idx: int
 
 
-def _r1_forward_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="Вперёд", callback_data=R1Forward().pack())]
-        ]
-    )
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 def _btn_caption(text: str, max_len: int = 64) -> str:
@@ -63,17 +63,28 @@ def _options_from_payload(payload: dict[str, Any]) -> list[str]:
 
 
 def _question_caption(q: RoundQuestion) -> str:
-    body = str(q.payload.get("text", ""))
-    return f"<b>Вопрос {q.order_index}.</b>\n\n{body}"
+    """Только номер в подписи к фото; варианты — кнопки."""
+    return f"<b>Вопрос №{q.order_index}</b>"
 
 
-def _r1_keyboard(q: RoundQuestion) -> InlineKeyboardMarkup:
+def _resolve_image_file(payload: dict[str, Any]) -> Path | None:
+    raw = payload.get("image_path")
+    if not raw:
+        return None
+    p = _PROJECT_ROOT / str(raw).lstrip("/")
+    if p.is_file():
+        return p
+    log.warning("Round3 image missing: %s (expected at %s)", raw, p)
+    return None
+
+
+def _r3_keyboard(q: RoundQuestion) -> InlineKeyboardMarkup:
     opts = _options_from_payload(q.payload)
     rows = [
         [
             InlineKeyboardButton(
                 text=_btn_caption(label),
-                callback_data=R1Pick(qid=q.id, idx=i).pack(),
+                callback_data=R3Pick(qid=q.id, idx=i).pack(),
             )
         ]
         for i, label in enumerate(opts)
@@ -81,12 +92,35 @@ def _r1_keyboard(q: RoundQuestion) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
-async def play_round1_entry(message: Message, session, user: User, active: Round) -> None:
-    """Точка входа для /play при активном R1."""
+def _r3_go_keyboard() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="Поехали", callback_data=R3Go().pack())]
+        ]
+    )
+
+
+async def _send_r3_question(message: Message, q: RoundQuestion) -> None:
+    caption = _question_caption(q)
+    kb = _r3_keyboard(q)
+    img = _resolve_image_file(q.payload)
+    if img is not None:
+        await message.answer_photo(photo=FSInputFile(img), caption=caption, reply_markup=kb)
+    else:
+        await message.answer(
+            f"{caption}\n\n"
+            "<i>(Файла картинки нет — положите его в репозиторий по пути из "
+            "<code>content/round3.yaml</code> → <code>assets/round3/</code>.)</i>",
+            reply_markup=kb,
+        )
+
+
+async def play_round3_entry(message: Message, session, user: User, active: Round) -> None:
+    """Точка входа для /play при активном R3."""
     nq = await get_next_round1_question(session, user.id, active)
     if nq is None:
         await message.answer(
-            "Ты уже прошёл все вопросы Тура 1. Отличная работа! Жди следующий тур."
+            "Ты уже прошёл все вопросы Тура 3. Отличная работа! Жди итогов шоу."
         )
         return
 
@@ -103,19 +137,16 @@ async def play_round1_entry(message: Message, session, user: User, active: Round
         and prog is not None
         and prog.status == RoundProgressStatus.NOT_STARTED
     ):
-        await message.answer(_R1_INTRO, reply_markup=_r1_forward_keyboard())
+        await message.answer(_R3_INTRO, reply_markup=_r3_go_keyboard())
         return
 
     await on_question_shown(session, user.id, active)
-    await message.answer(
-        _question_caption(nq),
-        reply_markup=_r1_keyboard(nq),
-    )
+    await _send_r3_question(message, nq)
 
 
-@router.callback_query(R1Forward.filter())
-async def on_r1_forward(query: CallbackQuery, callback_data: R1Forward) -> None:
-    del callback_data  # единственный шаг
+@router.callback_query(R3Go.filter())
+async def on_r3_go(query: CallbackQuery, callback_data: R3Go) -> None:
+    del callback_data
     if query.from_user is None or query.message is None:
         return
     msg = query.message
@@ -126,7 +157,7 @@ async def on_r1_forward(query: CallbackQuery, callback_data: R1Forward) -> None:
             return
 
         active = await get_playable_round_now(session)
-        if active is None or active.code != RoundCode.R1:
+        if active is None or active.code != RoundCode.R3:
             await query.answer("Сейчас нельзя продолжить тур.", show_alert=True)
             return
 
@@ -152,14 +183,11 @@ async def on_r1_forward(query: CallbackQuery, callback_data: R1Forward) -> None:
 
         await on_question_shown(session, user.id, active)
         await query.answer()
-        await msg.answer(
-            _question_caption(nq),
-            reply_markup=_r1_keyboard(nq),
-        )
+        await _send_r3_question(msg, nq)
 
 
-@router.callback_query(R1Pick.filter())
-async def on_r1_pick(query: CallbackQuery, callback_data: R1Pick) -> None:
+@router.callback_query(R3Pick.filter())
+async def on_r3_pick(query: CallbackQuery, callback_data: R3Pick) -> None:
     if query.from_user is None or query.message is None:
         return
     msg = query.message
@@ -170,7 +198,7 @@ async def on_r1_pick(query: CallbackQuery, callback_data: R1Pick) -> None:
             return
 
         active = await get_playable_round_now(session)
-        if active is None or active.code != RoundCode.R1:
+        if active is None or active.code != RoundCode.R3:
             await query.answer("Сейчас нельзя ответить в этом туре.", show_alert=True)
             return
 
@@ -197,14 +225,23 @@ async def on_r1_pick(query: CallbackQuery, callback_data: R1Pick) -> None:
         await query.answer()
 
         pld = q_row.payload if isinstance(q_row.payload, dict) else {}
-        fc = pld.get("feedback_correct") if isinstance(pld.get("feedback_correct"), str) else ""
-        fw = pld.get("feedback_wrong") if isinstance(pld.get("feedback_wrong"), str) else ""
+        fc_raw = pld.get("feedback_correct")
+        fb_legacy = pld.get("feedback")
+        fc = fc_raw.strip() if isinstance(fc_raw, str) else ""
+        fw_raw = pld.get("feedback_wrong")
+        fw = fw_raw.strip() if isinstance(fw_raw, str) else ""
 
         if awarded > 0:
-            feedback = fc.strip() if fc.strip() else f"Верно! +{awarded} баллов."
+            if fc:
+                feedback = fc
+            else:
+                lines = [f"Верно! +{awarded} баллов."]
+                if isinstance(fb_legacy, str) and fb_legacy.strip():
+                    lines.append(fb_legacy.strip())
+                feedback = "\n\n".join(lines)
         else:
-            if fw.strip():
-                feedback = fw.strip()
+            if fw:
+                feedback = fw
             else:
                 feedback = (
                     "Увы, не в этот раз.\n\n"
@@ -223,15 +260,12 @@ async def on_r1_pick(query: CallbackQuery, callback_data: R1Pick) -> None:
             prog = pr.scalar_one_or_none()
             total = prog.total_score if prog else 0
             await msg.answer(
-                "Ты молодец, спасибо за твои ответы! Мы объявим результаты в письме, "
-                "которое пришлём на указанную почту <b>25.05</b>, а пока принимай участие "
-                "в следующем туре, который стартует <b>18.05</b> — мы пришлём напоминание!\n\n"
+                "Ты молодец! Это был последний тур нашего Конкурса в Кубе! Спасибо за твои ответы, "
+                "участие и вовлечение. Мы объявим результаты в письме, которое пришлём <b>25.05</b> "
+                "на указанную почту — следи за новостями и обновляй почтовый ящик!\n\n"
                 f"Сумма баллов в туре: <b>{total}</b>."
             )
             return
 
         await on_question_shown(session, user.id, active)
-        await msg.answer(
-            _question_caption(nq),
-            reply_markup=_r1_keyboard(nq),
-        )
+        await _send_r3_question(msg, nq)

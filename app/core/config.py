@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     # чтобы наш `field_validator(mode="before")` получил сырую CSV-строку.
     allowed_email_domains: Annotated[list[str], NoDecode] = Field(default_factory=list)
 
+    # ---------- Access (invite link) ----------
+    # INVITE_ONLY=true и непустой INVITE_START_TOKENS: первый вход только как
+    # https://t.me/<bot>?start=<token>, token из списка через запятую (без пробелов в значении).
+    invite_only: bool = False
+    invite_start_tokens: Annotated[list[str], NoDecode] = Field(default_factory=list)
+
     # ---------- Admin ----------
     admin_ids: Annotated[list[int], NoDecode] = Field(default_factory=list)
 
@@ -64,6 +70,8 @@ class Settings(BaseSettings):
     run_mode: Literal["polling", "webhook"] = "polling"
     webhook_base_url: str = ""
     webhook_path: str = "/qclub/webhook"
+    # Секрет для заголовка X-Telegram-Bot-Api-Secret-Token (рекомендуется в бою).
+    webhook_secret: str = ""
     webhook_listen_host: str = "127.0.0.1"
     webhook_listen_port: int = 8081
 
@@ -80,6 +88,17 @@ class Settings(BaseSettings):
             return [p for p in parts if p]
         if isinstance(value, list):
             return [str(p).strip().lower().lstrip("@") for p in value if str(p).strip()]
+        return value
+
+    @field_validator("invite_start_tokens", mode="before")
+    @classmethod
+    def _parse_invite_tokens(cls, value):
+        if value is None or value == "":
+            return []
+        if isinstance(value, str):
+            return [p.strip() for p in value.split(",") if p.strip()]
+        if isinstance(value, list):
+            return [str(p).strip() for p in value if str(p).strip()]
         return value
 
     @field_validator("admin_ids", mode="before")
@@ -126,6 +145,14 @@ class Settings(BaseSettings):
 
     def is_admin(self, telegram_user_id: int) -> bool:
         return telegram_user_id in set(self.admin_ids)
+
+    @property
+    def invite_start_token_set(self) -> set[str]:
+        return set(self.invite_start_tokens)
+
+    def invite_link_enforced(self) -> bool:
+        """Нужна валидная ссылка с ?start= для новых участников (без подтверждённого email)."""
+        return self.invite_only and bool(self.invite_start_tokens)
 
 
 @lru_cache(maxsize=1)

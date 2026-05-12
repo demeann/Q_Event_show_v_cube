@@ -108,6 +108,22 @@ def test_missing_required_field_raises(monkeypatch):
         _make_settings()
 
 
+def test_invite_settings(monkeypatch):
+    _set_required_env(monkeypatch)
+    s = _make_settings()
+    assert s.invite_only is False
+    assert s.invite_start_tokens == []
+    assert s.invite_link_enforced() is False
+
+    monkeypatch.setenv("INVITE_ONLY", "true")
+    monkeypatch.setenv("INVITE_START_TOKENS", "-alpha, beta")
+    s = _make_settings()
+    assert s.invite_only is True
+    assert s.invite_start_tokens == ["-alpha", "beta"]
+    assert s.invite_link_enforced() is True
+    assert s.invite_start_token_set == {"-alpha", "beta"}
+
+
 def test_get_settings_is_cached(monkeypatch):
     _set_required_env(monkeypatch)
     a = get_settings()

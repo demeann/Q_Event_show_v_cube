@@ -6,7 +6,8 @@ build-backend = "setuptools.build_meta"
 name = "qclub-bot"
 version = "0.1.0"
 description = "Telegram bot for Q CLUB show-in-cube game (3 rounds, 9 winners each)."
-requires-python = ">=3.11"
+# 3.14: у pinned pydantic-core / PyO3 пока нет поддержки — см. README «Окружение».
+requires-python = ">=3.11,<3.14"
 readme = "README.md"
 
 [tool.setuptools.packages.find]
