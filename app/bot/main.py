@@ -68,6 +68,11 @@ async def _run_polling() -> None:
 
     await _set_bot_commands(bot)
 
+    try:
+        await bot.delete_webhook(drop_pending_updates=False)
+    except TelegramNetworkError as e:
+        log.warning("delete_webhook before polling: %s", e)
+
     log.info(
         "Bot polling started (parse_mode=HTML, http_timeout=%ss)",
         _BOT_HTTP_TIMEOUT_SEC,
