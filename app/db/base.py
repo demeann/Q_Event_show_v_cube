@@ -16,7 +16,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import AsyncIterator
 
-from sqlalchemy import BigInteger, DateTime, MetaData, func
+from sqlalchemy import BigInteger, DateTime, Integer, MetaData, func
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -63,9 +63,13 @@ class TimestampMixin:
 
 
 class IntPkMixin:
-    """Big int primary key — для всех таблиц приложения."""
+    """Big int primary key в бою (MySQL); в тестах на SQLite — INTEGER AUTOINCREMENT."""
 
-    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer(), "sqlite"),
+        primary_key=True,
+        autoincrement=True,
+    )
 
 
 _engine: AsyncEngine | None = None

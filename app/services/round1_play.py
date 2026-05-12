@@ -165,6 +165,13 @@ async def try_answer_round1(
     return True, awarded, None
 
 
+async def count_round_answers(
+    session: AsyncSession, user_id: int, round_id: int
+) -> int:
+    """Сколько ответов пользователь уже дал в туре (для вступительного текста и т.п.)."""
+    return await _answered_questions_count(session, user_id, round_id)
+
+
 async def _answered_questions_count(
     session: AsyncSession, user_id: int, round_id: int
 ) -> int:

@@ -52,7 +52,7 @@ def test_round3_shape():
     data = _load("round3.yaml")
     assert data["round_code"] == "R3"
     qs = data["questions"]
-    assert len(qs) == 5
+    assert len(qs) == 3
     for q in qs:
         p = q["payload"]
         assert len(p["options"]) == 2

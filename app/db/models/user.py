@@ -30,6 +30,10 @@ class User(IntPkMixin, TimestampMixin, Base):
         DateTime(timezone=False), nullable=True, index=True
     )
 
+    invite_gate_passed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=False), nullable=True
+    )
+
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
     is_blocked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
 
