@@ -189,4 +189,4 @@ async def _answered_questions_count(
 def format_correct_answer_line(payload: dict[str, Any]) -> str:
     options = _payload_options(payload)
     ci = correct_index(payload)
-    return f"Правильный ответ: <b>{options[ci]}</b>"
+    return f"\n\nПравильный ответ: <b>{options[ci]}</b>"

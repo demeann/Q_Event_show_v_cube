@@ -6,6 +6,48 @@
 
 ---
 
+## Сервер: шелл и SSH (без лишних «broken pipe»)
+
+Сессия часто рвётся по таймауту на NAT/роутере. Держи соединение «живым» с клиента:
+
+```bash
+ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=4 root@IP_ИЛИ_HOSTNAME
+```
+
+- **`ServerAliveInterval=30`** — раз в 30 с клиент шлёт пустой пакет; сервер не считает сессию мёртвой.
+- **`ServerAliveCountMax=4`** — сколько подряд отсутствия ответа до разрыва (при необходимости увеличь).
+
+Чтобы не печатать опции каждый раз, на **своём** Mac добавь в `~/.ssh/config`:
+
+```
+Host qclub-vps
+    HostName IP_ИЛИ_HOSTNAME
+    User root
+    ServerAliveInterval 30
+    ServerAliveCountMax 4
+```
+
+Дальше: `ssh qclub-vps`.
+
+**Частые команды в каталоге проекта** (пути подставь под свой деплой):
+
+```bash
+cd ~/q_event_show_v_cube/Q_Event_show_v_cube
+source .venv/bin/activate
+sudo systemctl restart qclub-bot.service
+sudo systemctl status qclub-bot.service --no-pager
+PYTHONPATH=. python -m scripts.seed_content
+```
+
+MySQL с сервера (учётка как в `.env` приложения):
+
+```bash
+mysql -u qclub_bot -p -h 127.0.0.1 ИМЯ_БАЗЫ
+# в консоли mysql: USE ИМЯ_БАЗЫ;
+```
+
+---
+
 ## База и туры
 
 ```sql
@@ -173,6 +215,55 @@ ORDER BY rq.order_index;
 
 ---
 
+## Активность в базе (последние ответы и «кто недавно играл»)
+
+```sql
+-- Последние 80 ответов по всем турам (кто, какой тур, вопрос, верно или нет, когда)
+SELECT
+  ua.answered_at,
+  u.telegram_user_id,
+  u.email,
+  r.code AS round_code,
+  rq.code AS question_code,
+  ua.is_correct,
+  ua.points_awarded
+FROM user_answers ua
+JOIN users u ON u.id = ua.user_id
+JOIN rounds r ON r.id = ua.round_id
+JOIN round_questions rq ON rq.id = ua.question_id
+ORDER BY ua.answered_at DESC
+LIMIT 80;
+```
+
+```sql
+-- Кто обновлял прогресс недавно (по last_answer_at в турах)
+SELECT
+  urp.last_answer_at,
+  u.telegram_user_id,
+  r.code,
+  urp.status,
+  urp.total_score
+FROM user_round_progress urp
+JOIN users u ON u.id = urp.user_id
+JOIN rounds r ON r.id = urp.round_id
+WHERE urp.last_answer_at IS NOT NULL
+ORDER BY urp.last_answer_at DESC
+LIMIT 50;
+```
+
+```sql
+-- Сводка за сегодня по UTC: сколько ответов (подставь UTC-дату)
+SELECT
+  DATE(ua.answered_at) AS day_utc,
+  COUNT(*) AS answers_cnt,
+  SUM(ua.is_correct = 1) AS correct_cnt
+FROM user_answers ua
+WHERE ua.answered_at >= UTC_DATE()
+GROUP BY DATE(ua.answered_at);
+```
+
+---
+
 ## Вопросы: сколько всего / сколько отвечено (по туру)
 
 ```sql
@@ -268,11 +359,45 @@ LIMIT 1;
 
 ---
 
-## Очистка прогресса одного пользователя по туру (осторожно)
+## Очистка прогресса одного пользователя (осторожно)
 
-Сначала проверь `user_id` и `round_id`, затем удаляй в порядке: ответы → темы Тур 2 → прогресс тура.
+**Имеется в виду игровые данные** (ответы, прогресс, победители по этому `user_id`). Строка в `users`, email и рассылки **не** удаляются — человек остаётся зарегистрированным.
 
-### По `telegram_user_id` — сброс Тура 2 (R2)
+Сначала проверь `user_id` / `telegram_user_id`, затем удаляй. Для **одного тура** — в порядке: ответы → темы Тур 2 → прогресс тура.
+
+### Все туры сразу (как логика `reset_all_game_progress_for_user` в приложении)
+
+Подходит для полного «обнулить прохождение» тестового аккаунта:
+
+```sql
+-- Замени 123456789 на реальный telegram_user_id из Telegram
+SET @uid := (SELECT id FROM users WHERE telegram_user_id = 123456789 LIMIT 1);
+
+SELECT @uid AS user_id_check;  -- если NULL — пользователя нет, DELETE не выполняй
+
+DELETE FROM user_answers WHERE user_id = @uid;
+DELETE FROM user_topic_progress WHERE user_id = @uid;
+DELETE FROM user_round_progress WHERE user_id = @uid;
+DELETE FROM winners WHERE user_id = @uid;
+```
+
+### Снова пройти `/start` с подтверждением почты (только для теста)
+
+Если нужно заново получить код на email **без смены аккаунта**:
+
+```sql
+SET @uid := 2;  -- users.id
+
+UPDATE users
+SET email_verified_at = NULL
+WHERE id = @uid;
+```
+
+Не делай это на бою без понимания последствий: человек снова попадёт в сегмент «нужна верификация».
+
+---
+
+### По `telegram_user_id` — сброс только одного тура (пример: R2)
 
 ```sql
 -- Проверка

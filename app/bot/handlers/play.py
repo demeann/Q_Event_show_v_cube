@@ -30,8 +30,9 @@ async def cmd_play(message: Message) -> None:
         active = await get_playable_round_now(session)
         if active is None:
             await message.answer(
-                "Сейчас нет активного тура. Даты игры совпадают с настройкой "
-                "внутри Q CLUB — загляни в объявления или к организаторам."
+                "Сейчас нет активного тура.\n\n"
+                "Даты игры совпадают с настройкой внутри Q CLUB — загляни в объявления "
+                "или к организаторам."
             )
             return
 

@@ -43,7 +43,10 @@ def _build_bot_and_dispatcher(settings: Settings) -> tuple[Bot, Dispatcher]:
     bot = Bot(
         token=settings.bot_token,
         session=session,
-        default=DefaultBotProperties(parse_mode=ParseMode.HTML),
+        default=DefaultBotProperties(
+            parse_mode=ParseMode.HTML,
+            protect_content=True,
+        ),
     )
     dp = Dispatcher()
     dp.update.outer_middleware(AccessMiddleware())

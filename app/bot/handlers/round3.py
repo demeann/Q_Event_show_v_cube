@@ -32,7 +32,7 @@ router = Router(name="round3")
 
 _R3_INTRO = (
     "Привет! Скучал? А вот и мы! Встречай финальный тур нашего Конкурса в Кубе!\n\n"
-    "Смотри на картинки, включай ассоциации и выбирай ответ.\n"
+    "Смотри на картинки, включай ассоциации и выбирай ответ.\n\n"
     "<tg-spoiler><i>Подсказка: Q CLUB рядом, но не всё так очевидно. Баллы не отнимаются — "
     "мы добрые до конца.</i></tg-spoiler>"
 )
@@ -62,9 +62,8 @@ def _question_caption(q: RoundQuestion) -> str:
     opts = _options_from_payload(q.payload)
     parts = [f"<b>Вопрос №{q.order_index}</b>"]
     if opts:
-        parts += ["", "<b>Варианты ответа:</b>"]
-        for i, o in enumerate(opts, 1):
-            parts.append(f"{i}. {escape(str(o))}")
+        parts += ["", "<b>Варианты ответа:</b>", ""]
+        parts.append("\n\n".join(f"{i}. {escape(str(o))}" for i, o in enumerate(opts, 1)))
     return "\n".join(parts)
 
 
@@ -256,9 +255,9 @@ async def on_r3_pick(query: CallbackQuery, callback_data: R3Pick) -> None:
         nq = await get_next_round1_question(session, user.id, active)
         if nq is None:
             await msg.answer(
-                "Ты молодец! Это был последний тур нашего Конкурса в Кубе! Спасибо за твои ответы, "
-                "участие и вовлечение. Мы объявим результаты в письме, которое пришлём <b>25.05</b> "
-                "на указанную почту — следи за новостями и обновляй почтовый ящик!"
+                "Ты молодец! Это был последний тур нашего Конкурса в Кубе!\n\n"
+                "Спасибо за ответы, участие и вовлечение.\n\n"
+                "Итоги пришлём письмом <b>25.05</b> на указанную почту — следи за ящиком!"
             )
             return
 

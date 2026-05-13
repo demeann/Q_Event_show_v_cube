@@ -28,7 +28,7 @@ router = Router(name="round1")
 
 _R1_INTRO = (
     "Мы начинаем! Добро пожаловать в первый тур!\n\n"
-    "Тут всё серьёзно: четыре варианта, один верный, ноль подсказок от зала. "
+    "Тут всё серьёзно: четыре варианта, один верный, ноль подсказок от зала.\n\n"
     "Ну, почти ноль. Поехали?"
 )
 
@@ -63,9 +63,8 @@ def _question_caption(q: RoundQuestion) -> str:
     opts = _options_from_payload(q.payload)
     parts = [f"<b>Вопрос {q.order_index}.</b>", "", escape(body)]
     if opts:
-        parts += ["", "<b>Варианты ответа:</b>"]
-        for i, o in enumerate(opts, 1):
-            parts.append(f"{i}. {escape(str(o))}")
+        parts += ["", "<b>Варианты ответа:</b>", ""]
+        parts.append("\n\n".join(f"{i}. {escape(str(o))}" for i, o in enumerate(opts, 1)))
     return "\n".join(parts)
 
 
@@ -220,9 +219,11 @@ async def on_r1_pick(query: CallbackQuery, callback_data: R1Pick) -> None:
         nq = await get_next_round1_question(session, user.id, active)
         if nq is None:
             await msg.answer(
-                "Ты молодец, спасибо за твои ответы! Мы объявим результаты в письме, "
-                "которое пришлём на указанную почту <b>25.05</b>, а пока принимай участие "
-                "в следующем туре, который стартует <b>18.05</b> — мы пришлём напоминание!"
+                "Ты молодец, спасибо за твои ответы!\n\n"
+                "Мы объявим результаты в письме, которое пришлём на указанную почту "
+                "<b>25.05</b>.\n\n"
+                "А пока принимай участие в следующем туре — он стартует <b>18.05</b>, "
+                "мы пришлём напоминание!"
             )
             return
 

@@ -42,3 +42,6 @@ logs/
 
 # Alembic auto-generated cache
 app/db/migrations/__pycache__/
+
+.DS_Store
+*.md
