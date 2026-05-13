@@ -16,6 +16,7 @@ from app.core.config import get_settings
 from app.db.base import get_session
 from app.db.models import EmailValidationLog
 from app.services.email_validation import check_corporate_email
+from app.services.tour_start_push import deliver_pending_tour_pushes_for_user
 from app.services.user_service import get_or_create_user
 
 log = logging.getLogger(__name__)
@@ -29,10 +30,10 @@ _WELCOME_NEW = (
 )
 
 _EMAIL_ACCEPTED = (
-    'Добро пожаловать в "Конкурс в кубе"!\n\n'
+    'Добро пожаловать в "Конкурс в кубе"!🧡\n\n'
     "Ты можешь вспомнить лучшие моменты яркой трёхлетней истории программы лояльности "
     "Q CLUB — и получить шанс выиграть классный приз!\n\n"
-    "Тебя ждут три тура: <b>14.05</b>, <b>18.05</b> и <b>20.05</b>. Мы пришлём напоминания, "
+    "📆Тебя ждут три тура: <b>14.05</b>, <b>18.05</b> и <b>20.05</b>. Мы пришлём напоминания, "
     "чтобы ты не пропустил начало.\n\n"
     "Участвуй в каждом туре и зарабатывай баллы. Удачи!"
 )
@@ -182,6 +183,10 @@ async def process_email(message: Message, state: FSMContext) -> None:
 
     await state.clear()
     await message.answer(_EMAIL_ACCEPTED)
+    if message.bot is not None and message.from_user is not None:
+        await deliver_pending_tour_pushes_for_user(
+            message.bot, telegram_user_id=message.from_user.id
+        )
 
 
 @router.message(OnboardingStates.waiting_email)

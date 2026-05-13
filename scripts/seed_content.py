@@ -1,4 +1,4 @@
-"""Идемпотентный сидер контента: туры (окна по МСК), вопросы, шаблоны рассылок.
+"""Идемпотентный сидер: туры (старт 10:00 МСК в первый день окна), вопросы."""
 
 Запуск из корня репозитория::
 
@@ -18,16 +18,9 @@ import yaml
 from sqlalchemy import delete, select
 
 from app.core.config import get_settings
-from app.core.time import add_days, msk_day_end, msk_day_start, to_utc
+from app.core.time import add_days, msk_at, msk_day_end, to_utc
 from app.db.base import dispose_engine, get_session
-from app.db.models import (
-    BroadcastTemplate,
-    BroadcastTemplateType,
-    Round,
-    RoundCode,
-    RoundQuestion,
-    RoundStatus,
-)
+from app.db.models import Round, RoundCode, RoundQuestion, RoundStatus
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 _CONTENT_DIR = _PROJECT_ROOT / "content"
@@ -40,8 +33,8 @@ def _load_yaml(name: str) -> dict[str, Any]:
 
 
 def _msk_range_to_utc_naive(start_day: date, end_day: date) -> tuple:
-    """Переводит полуинтервал «дни по МСК» в naive UTC для колонок DATETIME MySQL."""
-    start_utc = to_utc(msk_day_start(start_day)).replace(tzinfo=None)
+    """Переводит «первый день тура (старт 10:00 МСК) … последний день» в naive UTC."""
+    start_utc = to_utc(msk_at(start_day, 10, 0)).replace(tzinfo=None)
     end_utc = to_utc(msk_day_end(end_day)).replace(tzinfo=None)
     return start_utc, end_utc
 
@@ -165,39 +158,9 @@ async def _load_round_file(session, code: RoundCode, filename: str, window_meta)
     return rnd
 
 
-async def _upsert_broadcast_template(
-    session,
-    code: str,
-    tpl_type: BroadcastTemplateType,
-    text: str,
-    image_path: str | None,
-) -> None:
-    result = await session.execute(select(BroadcastTemplate).where(BroadcastTemplate.code == code))
-    row = result.scalar_one_or_none()
-    if row is None:
-        session.add(
-            BroadcastTemplate(code=code, type=tpl_type, text=text, image_path=image_path)
-        )
-        return
-    row.type = tpl_type
-    row.text = text
-    row.image_path = image_path
-
-
-async def _seed_broadcasts(session) -> None:
-    data = _load_yaml("broadcasts.yaml")
-    for tpl in data["templates"]:
-        code = tpl["code"]
-        tpl_type = BroadcastTemplateType(tpl["type"])
-        await _upsert_broadcast_template(
-            session, code, tpl_type, tpl["text"].strip(), tpl.get("image_path")
-        )
-
-
 async def seed_all() -> None:
     async with get_session() as session:
         await _seed_rounds_and_questions(session)
-        await _seed_broadcasts(session)
 
 
 async def _async_main() -> None:

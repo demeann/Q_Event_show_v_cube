@@ -25,17 +25,13 @@ from app.services.round1_play import (
     try_answer_round1,
 )
 from app.services.round_schedule import get_playable_round_now
+from app.services.tour_start_push import TOUR_PUSH_R3_TEXT
 
 log = logging.getLogger(__name__)
 
 router = Router(name="round3")
 
-_R3_INTRO = (
-    "Привет! Скучал? А вот и мы! Встречай финальный тур нашего Конкурса в Кубе!\n\n"
-    "Смотри на картинки, включай ассоциации и выбирай ответ.\n\n"
-    "<tg-spoiler><i>Подсказка: Q CLUB рядом, но не всё так очевидно. Баллы не отнимаются — "
-    "мы добрые до конца.</i></tg-spoiler>"
-)
+_R3_INTRO = TOUR_PUSH_R3_TEXT
 
 
 class R3Go(CallbackData, prefix="r3go"):
@@ -255,9 +251,9 @@ async def on_r3_pick(query: CallbackQuery, callback_data: R3Pick) -> None:
         nq = await get_next_round1_question(session, user.id, active)
         if nq is None:
             await msg.answer(
-                "Ты молодец! Это был последний тур нашего Конкурса в Кубе!\n\n"
-                "Спасибо за ответы, участие и вовлечение.\n\n"
-                "Итоги пришлём письмом <b>25.05</b> на указанную почту — следи за ящиком!"
+                "Ты молодец!🎉 Это был последний тур нашего Конкурса в Кубе!\n\n"
+                "Спасибо за ответы, участие и вовлечение.🤍\n\n"
+                "Мы объявим результаты в письме, которое пришлём <b>25.05</b> на указанную почту — следи за новостями и почтовым ящиком!📆"
             )
             return
 

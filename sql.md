@@ -359,6 +359,42 @@ LIMIT 1;
 
 ---
 
+## Полный сброс игровых данных для **всех** пользователей (осторожно)
+
+Стирает ответы, прогресс по турам/темам, очереди и историю **рассылок** (`broadcasts` / `broadcast_recipients`), **отборы победителей** (`winner_selections` и связанные `winners`).
+
+**Не удаляет:** строки `users`, туры `rounds`, вопросы `round_questions`, шаблоны `broadcast_templates`, логи `email_validation_log`.
+
+**Предпочтительно с сервера** (одна транзакция, счётчики до/после, без `--yes` только просмотр):
+
+```bash
+cd ~/q_event_show_v_cube/Q_Event_show_v_cube && source .venv/bin/activate
+export PYTHONPATH=.
+python -m scripts.reset_all_game_state          # только статистика таблиц
+python -m scripts.reset_all_game_state --yes    # реальное удаление
+```
+
+Вручную в MySQL (порядок важен из‑за внешних ключей; строки `winners` уходят каскадом при удалении `winner_selections`, получатели рассылок — при удалении `broadcasts`, если в БД так настроен CASCADE):
+
+```sql
+-- Сделай бэкап или хотя бы SELECT COUNT(*) по таблицам ниже.
+START TRANSACTION;
+
+DELETE FROM broadcast_recipients;
+DELETE FROM broadcasts;
+DELETE FROM winner_selections;
+DELETE FROM user_answers;
+DELETE FROM user_topic_progress;
+DELETE FROM user_round_progress;
+
+COMMIT;
+-- При сомнениях: ROLLBACK;
+```
+
+После сброса планировщик снова создаст рассылки по расписанию; пользователям не нужно заново регистрироваться, если не трогал `users`.
+
+---
+
 ## Очистка прогресса одного пользователя (осторожно)
 
 **Имеется в виду игровые данные** (ответы, прогресс, победители по этому `user_id`). Строка в `users`, email и рассылки **не** удаляются — человек остаётся зарегистрированным.
