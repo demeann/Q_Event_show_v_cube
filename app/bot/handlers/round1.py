@@ -142,7 +142,9 @@ async def on_r1_forward(query: CallbackQuery, callback_data: R1Forward) -> None:
             )
         )
         prog = pr.scalar_one_or_none()
-        if prog is None or prog.status != RoundProgressStatus.NOT_STARTED:
+        # Только с пуша «Вперёд» без /play — строки прогресса ещё нет (prog is None);
+        # ветка «уже открыто выше» только если тур реально перевели из NOT_STARTED.
+        if prog is not None and prog.status != RoundProgressStatus.NOT_STARTED:
             await query.answer("Первый вопрос уже открыт выше.", show_alert=True)
             return
 

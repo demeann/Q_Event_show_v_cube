@@ -171,7 +171,7 @@ async def on_r3_go(query: CallbackQuery, callback_data: R3Go) -> None:
             )
         )
         prog = pr.scalar_one_or_none()
-        if prog is None or prog.status != RoundProgressStatus.NOT_STARTED:
+        if prog is not None and prog.status != RoundProgressStatus.NOT_STARTED:
             await query.answer("Первый вопрос уже открыт выше.", show_alert=True)
             return
 
