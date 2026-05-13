@@ -10,7 +10,6 @@ import yaml
 
 from app.bot.handlers.round3 import (
     R3Pick,
-    _btn_caption,
     _options_from_payload,
     _question_caption,
     _resolve_image_file,
@@ -39,14 +38,6 @@ def test_r3_pick_pack_unpack_roundtrip(qid: int, idx: int) -> None:
     assert parsed.qid == qid and parsed.idx == idx
 
 
-def test_btn_caption_short_and_truncated() -> None:
-    assert _btn_caption("ok") == "ok"
-    long = "x" * 80
-    out = _btn_caption(long)
-    assert len(out) == 64
-    assert out.endswith("…")
-
-
 def test_options_from_payload_variants() -> None:
     assert _options_from_payload({}) == []
     assert _options_from_payload({"options": []}) == []
@@ -54,10 +45,15 @@ def test_options_from_payload_variants() -> None:
 
 
 def test_question_caption() -> None:
-    q = SimpleNamespace(order_index=2, payload={"text": "Текст задачи"})
+    q = SimpleNamespace(
+        order_index=2,
+        payload={"text": "Текст задачи", "options": ["А", "Б"]},
+    )
     cap = _question_caption(q)
     assert "Вопрос №2" in cap
-    assert "Текст задачи" not in cap
+    assert "Варианты ответа" in cap
+    assert "1. А" in cap
+    assert "2. Б" in cap
 
 
 def test_r3_keyboard_two_buttons_distinct_callbacks() -> None:
@@ -67,10 +63,12 @@ def test_r3_keyboard_two_buttons_distinct_callbacks() -> None:
         payload={"text": "?", "options": ["Левый", "Правый"]},
     )
     kb = _r3_keyboard(q)
-    assert len(kb.inline_keyboard) == 2
-    row0, row1 = kb.inline_keyboard
+    assert len(kb.inline_keyboard) == 1
+    row0 = kb.inline_keyboard[0]
+    assert len(row0) == 2
+    assert row0[0].text == "1" and row0[1].text == "2"
     d0 = R3Pick.unpack(row0[0].callback_data)
-    d1 = R3Pick.unpack(row1[0].callback_data)
+    d1 = R3Pick.unpack(row0[1].callback_data)
     assert d0.qid == d1.qid == 77
     assert d0.idx == 0 and d1.idx == 1
 

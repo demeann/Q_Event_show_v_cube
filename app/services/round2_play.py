@@ -195,7 +195,11 @@ async def try_answer_round2(
     question: RoundQuestion,
     selected_idx: int,
 ) -> tuple[bool, int, str | None]:
-    """Записать ответ в теме. Закрывает тему при ошибке или после 2-го вопроса."""
+    """Записать ответ в теме. Закрывает тему при ошибке или после 2-го вопроса.
+
+    Возвращает (ok, points_for_user_message, err): в счёт тура в БД идёт **1** за верный
+    ответ; второе число — ``question.points`` при верном ответе (для фразы «+N баллов» в UI).
+    """
     if question.topic_code is None:
         return False, 0, "Внутренняя ошибка темы."
 
@@ -232,7 +236,8 @@ async def try_answer_round2(
 
     corr = _correct_index(question.payload)
     is_correct = selected_idx == corr
-    awarded = question.points if is_correct else 0
+    score_increment = 1 if is_correct else 0
+    display_points = question.points if is_correct else 0
     now_naive = now_utc().replace(tzinfo=None)
 
     rp = await _get_or_create_round_progress(session, user_id, round_row.id)
@@ -245,14 +250,14 @@ async def try_answer_round2(
             question_id=question.id,
             selected_option=str(selected_idx),
             is_correct=is_correct,
-            points_awarded=awarded,
+            points_awarded=score_increment,
             answered_at=now_naive,
         )
     )
 
-    rp.total_score += awarded
+    rp.total_score += score_increment
     rp.last_answer_at = now_naive
-    tp.score += awarded
+    tp.score += score_increment
 
     is_last_in_topic = q_index == len(qs_ordered) - 1
     if (not is_correct) or is_last_in_topic:
@@ -263,7 +268,8 @@ async def try_answer_round2(
         rp.status = RoundProgressStatus.FINISHED
         rp.finished_at = now_naive
 
-    return True, awarded, None
+    # Второе значение — «вес» вопроса для текста пользователю; в БД считаем только верные ответы.
+    return True, display_points, None
 
 
 async def ensure_r2_round_started_on_show(

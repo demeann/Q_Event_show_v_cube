@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from html import escape
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ from aiogram.types import CallbackQuery, FSInputFile, InlineKeyboardButton, Inli
 from sqlalchemy import select
 
 from app.bot.gates import gate_playable_user
+from app.bot.intro_media import INTRO_R3_IMAGE, answer_intro_with_optional_photo
 from app.db.base import get_session
 from app.db.models import Round, RoundCode, RoundQuestion, User, UserRoundProgress
 from app.db.models.progress import RoundProgressStatus
@@ -48,13 +50,6 @@ class R3Pick(CallbackData, prefix="r3"):
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
-def _btn_caption(text: str, max_len: int = 64) -> str:
-    t = text.strip()
-    if len(t) <= max_len:
-        return t
-    return t[: max_len - 1] + "…"
-
-
 def _options_from_payload(payload: dict[str, Any]) -> list[str]:
     raw = payload.get("options")
     if not isinstance(raw, list) or not raw:
@@ -63,8 +58,14 @@ def _options_from_payload(payload: dict[str, Any]) -> list[str]:
 
 
 def _question_caption(q: RoundQuestion) -> str:
-    """Только номер в подписи к фото; варианты — кнопки."""
-    return f"<b>Вопрос №{q.order_index}</b>"
+    """Подпись к фото: номер + нумерованные варианты; на кнопках — только номера."""
+    opts = _options_from_payload(q.payload)
+    parts = [f"<b>Вопрос №{q.order_index}</b>"]
+    if opts:
+        parts += ["", "<b>Варианты ответа:</b>"]
+        for i, o in enumerate(opts, 1):
+            parts.append(f"{i}. {escape(str(o))}")
+    return "\n".join(parts)
 
 
 def _resolve_image_file(payload: dict[str, Any]) -> Path | None:
@@ -80,16 +81,14 @@ def _resolve_image_file(payload: dict[str, Any]) -> Path | None:
 
 def _r3_keyboard(q: RoundQuestion) -> InlineKeyboardMarkup:
     opts = _options_from_payload(q.payload)
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=_btn_caption(label),
-                callback_data=R3Pick(qid=q.id, idx=i).pack(),
-            )
-        ]
-        for i, label in enumerate(opts)
+    row = [
+        InlineKeyboardButton(
+            text=str(i + 1),
+            callback_data=R3Pick(qid=q.id, idx=i).pack(),
+        )
+        for i in range(len(opts))
     ]
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    return InlineKeyboardMarkup(inline_keyboard=[row] if row else [])
 
 
 def _r3_go_keyboard() -> InlineKeyboardMarkup:
@@ -137,7 +136,12 @@ async def play_round3_entry(message: Message, session, user: User, active: Round
         and prog is not None
         and prog.status == RoundProgressStatus.NOT_STARTED
     ):
-        await message.answer(_R3_INTRO, reply_markup=_r3_go_keyboard())
+        await answer_intro_with_optional_photo(
+            message,
+            rel_image_path=INTRO_R3_IMAGE,
+            caption=_R3_INTRO,
+            reply_markup=_r3_go_keyboard(),
+        )
         return
 
     await on_question_shown(session, user.id, active)
@@ -235,7 +239,7 @@ async def on_r3_pick(query: CallbackQuery, callback_data: R3Pick) -> None:
             if fc:
                 feedback = fc
             else:
-                lines = [f"Верно! +{awarded} баллов."]
+                lines = ["Верно!"]
                 if isinstance(fb_legacy, str) and fb_legacy.strip():
                     lines.append(fb_legacy.strip())
                 feedback = "\n\n".join(lines)
@@ -251,19 +255,10 @@ async def on_r3_pick(query: CallbackQuery, callback_data: R3Pick) -> None:
 
         nq = await get_next_round1_question(session, user.id, active)
         if nq is None:
-            pr = await session.execute(
-                select(UserRoundProgress).where(
-                    UserRoundProgress.user_id == user.id,
-                    UserRoundProgress.round_id == active.id,
-                )
-            )
-            prog = pr.scalar_one_or_none()
-            total = prog.total_score if prog else 0
             await msg.answer(
                 "Ты молодец! Это был последний тур нашего Конкурса в Кубе! Спасибо за твои ответы, "
                 "участие и вовлечение. Мы объявим результаты в письме, которое пришлём <b>25.05</b> "
-                "на указанную почту — следи за новостями и обновляй почтовый ящик!\n\n"
-                f"Сумма баллов в туре: <b>{total}</b>."
+                "на указанную почту — следи за новостями и обновляй почтовый ящик!"
             )
             return
 

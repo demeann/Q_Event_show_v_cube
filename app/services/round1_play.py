@@ -110,9 +110,11 @@ async def try_answer_round1(
     question: RoundQuestion,
     selected_idx: int,
 ) -> tuple[bool, int, str | None]:
-    """Записать ответ. Возвращает (успех_записи, начислено_баллов, текст_ошибки).
+    """Записать ответ. Возвращает (успех_записи, очки_для_текста_юзеру, текст_ошибки).
 
-    При дубликате попытки success False и сообщение для пользователя.
+    В прогрессе и ``UserAnswer.points_awarded`` — **1 за верный / 0 за неверный**
+    (рейтинг и выгрузки = число верных ответов по туру). Второе значение для UI —
+    ``question.points`` при верном ответе и 0 при неверном (подпись «ставки» в копирайте).
     """
     options = _payload_options(question.payload)
     if not (0 <= selected_idx < len(options)):
@@ -120,7 +122,7 @@ async def try_answer_round1(
 
     corr = correct_index(question.payload)
     is_correct = selected_idx == corr
-    awarded = question.points if is_correct else 0
+    awarded = 1 if is_correct else 0
     now_naive = now_utc().replace(tzinfo=None)
 
     progress = await _get_or_create_progress(session, user_id, round_row.id)

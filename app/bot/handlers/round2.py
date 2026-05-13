@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from html import escape
 from typing import Any
 
 from aiogram import Router
@@ -10,6 +11,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 from sqlalchemy import select
 
 from app.bot.gates import gate_playable_user
+from app.bot.intro_media import INTRO_R2_IMAGE, answer_intro_with_optional_photo
 from app.db.base import get_session
 from app.db.models import Round, RoundCode, RoundQuestion, User, UserRoundProgress
 from app.services.round2_play import (
@@ -42,8 +44,7 @@ _R2_FINISHED_FOLLOWUP = (
 )
 
 
-async def _send_round2_completed(msg: Message, total: int) -> None:
-    await msg.answer(f"Сумма баллов в туре: <b>{total}</b>")
+async def _send_round2_completed(msg: Message) -> None:
     await msg.answer(_R2_FINISHED_FOLLOWUP)
 
 R2_TOPIC_TITLES: dict[str, str] = {
@@ -84,21 +85,25 @@ def _r2_question_caption(q: RoundQuestion) -> str:
     tc = q.topic_code or ""
     title = R2_TOPIC_TITLES.get(tc, tc)
     body = str(q.payload.get("text", ""))
-    return f"<b>{title}</b>\n\n{body}"
+    opts = _options_from_payload(q.payload)
+    parts = [f"<b>{escape(title)}</b>", "", escape(body)]
+    if opts:
+        parts += ["", "<b>Варианты ответа:</b>"]
+        for i, o in enumerate(opts, 1):
+            parts.append(f"{i}. {escape(str(o))}")
+    return "\n".join(parts)
 
 
 def _r2_answer_keyboard(q: RoundQuestion) -> InlineKeyboardMarkup:
     opts = _options_from_payload(q.payload)
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=_btn_caption(label),
-                callback_data=R2Pick(qid=q.id, idx=i).pack(),
-            )
-        ]
-        for i, label in enumerate(opts)
+    row = [
+        InlineKeyboardButton(
+            text=str(i + 1),
+            callback_data=R2Pick(qid=q.id, idx=i).pack(),
+        )
+        for i in range(len(opts))
     ]
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    return InlineKeyboardMarkup(inline_keyboard=[row] if row else [])
 
 
 def _topic_pick_keyboard(topic_codes: list[str]) -> InlineKeyboardMarkup:
@@ -125,15 +130,7 @@ def _r2_go_keyboard() -> InlineKeyboardMarkup:
 async def play_round2_entry(message: Message, session, user: User, active: Round) -> None:
     topics_order = await ordered_topic_codes(session, active.id)
     if await all_r2_topics_finished_for_user(session, user.id, active.id, topics_order):
-        pr = await session.execute(
-            select(UserRoundProgress).where(
-                UserRoundProgress.user_id == user.id,
-                UserRoundProgress.round_id == active.id,
-            )
-        )
-        prog = pr.scalar_one_or_none()
-        total = prog.total_score if prog else 0
-        await _send_round2_completed(message, total)
+        await _send_round2_completed(message)
         return
 
     resume = await get_resume_question_r2(session, user.id, active)
@@ -154,7 +151,12 @@ async def play_round2_entry(message: Message, session, user: User, active: Round
         return
 
     if await round2_needs_go_button(session, user.id, active.id):
-        await message.answer(_R2_INTRO, reply_markup=_r2_go_keyboard())
+        await answer_intro_with_optional_photo(
+            message,
+            rel_image_path=INTRO_R2_IMAGE,
+            caption=_R2_INTRO,
+            reply_markup=_r2_go_keyboard(),
+        )
         return
 
     await ensure_r2_round_started_on_show(session, user.id, active)
@@ -194,15 +196,7 @@ async def _continue_round2_ui(
 
     topics_order = await ordered_topic_codes(session, active.id)
     if await all_r2_topics_finished_for_user(session, user.id, active.id, topics_order):
-        pr = await session.execute(
-            select(UserRoundProgress).where(
-                UserRoundProgress.user_id == user.id,
-                UserRoundProgress.round_id == active.id,
-            )
-        )
-        prog = pr.scalar_one_or_none()
-        total = prog.total_score if prog else 0
-        await _send_round2_completed(msg, total)
+        await _send_round2_completed(msg)
         return
 
     resume = await get_resume_question_r2(session, user.id, active)

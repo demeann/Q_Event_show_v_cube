@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from html import escape
 from typing import Any
 
 from aiogram import Router
@@ -10,6 +11,7 @@ from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMar
 from sqlalchemy import select
 
 from app.bot.gates import gate_playable_user
+from app.bot.intro_media import INTRO_R1_IMAGE, answer_intro_with_optional_photo
 from app.db.base import get_session
 from app.db.models import Round, RoundCode, RoundQuestion, User, UserRoundProgress
 from app.db.models.progress import RoundProgressStatus
@@ -48,13 +50,6 @@ def _r1_forward_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def _btn_caption(text: str, max_len: int = 64) -> str:
-    t = text.strip()
-    if len(t) <= max_len:
-        return t
-    return t[: max_len - 1] + "…"
-
-
 def _options_from_payload(payload: dict[str, Any]) -> list[str]:
     raw = payload.get("options")
     if not isinstance(raw, list) or not raw:
@@ -63,22 +58,27 @@ def _options_from_payload(payload: dict[str, Any]) -> list[str]:
 
 
 def _question_caption(q: RoundQuestion) -> str:
+    """Текст вопроса + нумерованные варианты; на кнопках — только номера (удобно в мобильном Telegram)."""
     body = str(q.payload.get("text", ""))
-    return f"<b>Вопрос {q.order_index}.</b>\n\n{body}"
+    opts = _options_from_payload(q.payload)
+    parts = [f"<b>Вопрос {q.order_index}.</b>", "", escape(body)]
+    if opts:
+        parts += ["", "<b>Варианты ответа:</b>"]
+        for i, o in enumerate(opts, 1):
+            parts.append(f"{i}. {escape(str(o))}")
+    return "\n".join(parts)
 
 
 def _r1_keyboard(q: RoundQuestion) -> InlineKeyboardMarkup:
     opts = _options_from_payload(q.payload)
-    rows = [
-        [
-            InlineKeyboardButton(
-                text=_btn_caption(label),
-                callback_data=R1Pick(qid=q.id, idx=i).pack(),
-            )
-        ]
-        for i, label in enumerate(opts)
+    row = [
+        InlineKeyboardButton(
+            text=str(i + 1),
+            callback_data=R1Pick(qid=q.id, idx=i).pack(),
+        )
+        for i in range(len(opts))
     ]
-    return InlineKeyboardMarkup(inline_keyboard=rows)
+    return InlineKeyboardMarkup(inline_keyboard=[row] if row else [])
 
 
 async def play_round1_entry(message: Message, session, user: User, active: Round) -> None:
@@ -103,7 +103,12 @@ async def play_round1_entry(message: Message, session, user: User, active: Round
         and prog is not None
         and prog.status == RoundProgressStatus.NOT_STARTED
     ):
-        await message.answer(_R1_INTRO, reply_markup=_r1_forward_keyboard())
+        await answer_intro_with_optional_photo(
+            message,
+            rel_image_path=INTRO_R1_IMAGE,
+            caption=_R1_INTRO,
+            reply_markup=_r1_forward_keyboard(),
+        )
         return
 
     await on_question_shown(session, user.id, active)
@@ -201,7 +206,7 @@ async def on_r1_pick(query: CallbackQuery, callback_data: R1Pick) -> None:
         fw = pld.get("feedback_wrong") if isinstance(pld.get("feedback_wrong"), str) else ""
 
         if awarded > 0:
-            feedback = fc.strip() if fc.strip() else f"Верно! +{awarded} баллов."
+            feedback = fc.strip() if fc.strip() else "Верно!"
         else:
             if fw.strip():
                 feedback = fw.strip()
@@ -214,19 +219,10 @@ async def on_r1_pick(query: CallbackQuery, callback_data: R1Pick) -> None:
 
         nq = await get_next_round1_question(session, user.id, active)
         if nq is None:
-            pr = await session.execute(
-                select(UserRoundProgress).where(
-                    UserRoundProgress.user_id == user.id,
-                    UserRoundProgress.round_id == active.id,
-                )
-            )
-            prog = pr.scalar_one_or_none()
-            total = prog.total_score if prog else 0
             await msg.answer(
                 "Ты молодец, спасибо за твои ответы! Мы объявим результаты в письме, "
                 "которое пришлём на указанную почту <b>25.05</b>, а пока принимай участие "
-                "в следующем туре, который стартует <b>18.05</b> — мы пришлём напоминание!\n\n"
-                f"Сумма баллов в туре: <b>{total}</b>."
+                "в следующем туре, который стартует <b>18.05</b> — мы пришлём напоминание!"
             )
             return
 
