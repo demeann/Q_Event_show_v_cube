@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import datetime
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
@@ -93,6 +94,11 @@ def _sent_column(code: RoundCode):
     }[code]
 
 
+def _within_tour_push_window(round_row: Round, now_naive: datetime) -> bool:
+    """Стартовый пуш шлём только в окне тура; после ends_at не догоняем."""
+    return round_row.starts_at <= now_naive <= round_row.ends_at
+
+
 async def _send_one_push(
     bot: Bot,
     *,
@@ -135,7 +141,7 @@ async def try_send_tour_push_for_user(
     if user.email_verified_at is None and not user.is_admin:
         return
     now_naive = now_utc().replace(tzinfo=None)
-    if now_naive < round_row.starts_at:
+    if not _within_tour_push_window(round_row, now_naive):
         return
     col = _sent_column(round_row.code)
     if getattr(user, col.key) is not None:
@@ -157,7 +163,7 @@ async def try_send_tour_push_for_user(
 
 
 async def deliver_pending_tour_pushes_for_user(bot: Bot, *, telegram_user_id: int) -> None:
-    """После верификации: все туры, что уже стартовали, пуш ещё не слали."""
+    """После верификации: туры в активном окне, по которым пуш ещё не слали."""
     async with get_session() as session:
         r = await session.execute(
             select(Round)
@@ -177,7 +183,7 @@ async def deliver_pending_tour_pushes_for_user(bot: Bot, *, telegram_user_id: in
 
 
 async def process_due_tour_start_pushes(bot: Bot) -> None:
-    """Фон: пуши по турам с наступившим starts_at, один раз на пользователя."""
+    """Фон: пуши по турам в окне [starts_at, ends_at], один раз на пользователя."""
     async with get_session() as session:
         now_naive = now_utc().replace(tzinfo=None)
         r = await session.execute(
@@ -185,7 +191,7 @@ async def process_due_tour_start_pushes(bot: Bot) -> None:
             .where(Round.code.in_(_ALL_ROUNDS))
             .order_by(Round.starts_at.asc())
         )
-        rounds = [x for x in r.scalars().all() if now_naive >= x.starts_at]
+        rounds = [x for x in r.scalars().all() if _within_tour_push_window(x, now_naive)]
         for rnd in rounds:
             col = _sent_column(rnd.code)
             has_round_progress = exists().where(
