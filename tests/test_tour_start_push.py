@@ -1,0 +1,81 @@
+"""Пуши старта тура: не дублировать, если пользователь уже зашёл в тур через /play."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from unittest.mock import AsyncMock
+
+import pytest
+
+from app.db.models import Round, User, UserRoundProgress
+from app.db.models.progress import RoundProgressStatus
+from app.db.models.round import RoundCode, RoundStatus
+from app.services.tour_start_push import try_send_tour_push_for_user
+
+
+@pytest.mark.asyncio
+async def test_try_send_skips_when_user_has_round_progress(db_session, monkeypatch):
+    async def boom(*_a, **_kw):
+        raise AssertionError("_send_one_push must not be called")
+
+    monkeypatch.setattr("app.services.tour_start_push._send_one_push", boom)
+
+    u = User(
+        telegram_user_id=424242,
+        email_verified_at=datetime(2026, 1, 1, 12, 0, 0),
+    )
+    db_session.add(u)
+    rnd = Round(
+        code=RoundCode.R1,
+        name="Тур 1",
+        starts_at=datetime(2026, 1, 1, 0, 0, 0),
+        ends_at=datetime(2030, 1, 1, 0, 0, 0),
+        status=RoundStatus.ACTIVE,
+    )
+    db_session.add(rnd)
+    await db_session.flush()
+
+    db_session.add(
+        UserRoundProgress(
+            user_id=u.id,
+            round_id=rnd.id,
+            status=RoundProgressStatus.NOT_STARTED,
+            total_score=0,
+        )
+    )
+    await db_session.flush()
+
+    bot = AsyncMock()
+    await try_send_tour_push_for_user(db_session, bot, user_id=u.id, round_row=rnd)
+    assert u.tour_push_r1_sent_at is None
+
+
+@pytest.mark.asyncio
+async def test_try_send_when_no_progress(db_session, monkeypatch):
+    calls: list[int] = []
+
+    async def fake_send(*_a, **_kw):
+        calls.append(1)
+        return True
+
+    monkeypatch.setattr("app.services.tour_start_push._send_one_push", fake_send)
+
+    u = User(
+        telegram_user_id=424243,
+        email_verified_at=datetime(2026, 1, 1, 12, 0, 0),
+    )
+    db_session.add(u)
+    rnd = Round(
+        code=RoundCode.R1,
+        name="Тур 1",
+        starts_at=datetime(2026, 1, 1, 0, 0, 0),
+        ends_at=datetime(2030, 1, 1, 0, 0, 0),
+        status=RoundStatus.ACTIVE,
+    )
+    db_session.add(rnd)
+    await db_session.flush()
+
+    bot = AsyncMock()
+    await try_send_tour_push_for_user(db_session, bot, user_id=u.id, round_row=rnd)
+    assert len(calls) == 1
+    assert u.tour_push_r1_sent_at is not None

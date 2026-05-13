@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime
 
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest, TelegramForbiddenError
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.bot.intro_media import (
@@ -20,7 +19,7 @@ from app.bot.intro_media import (
 )
 from app.core.time import now_utc
 from app.db.base import get_session
-from app.db.models import Round, RoundCode, User
+from app.db.models import Round, RoundCode, User, UserRoundProgress
 from app.services.broadcast_segments import eligible_user_base_stmt
 
 log = logging.getLogger(__name__)
@@ -141,6 +140,16 @@ async def try_send_tour_push_for_user(
     col = _sent_column(round_row.code)
     if getattr(user, col.key) is not None:
         return
+    already_in_round = await session.scalar(
+        select(
+            exists().where(
+                UserRoundProgress.user_id == user_id,
+                UserRoundProgress.round_id == round_row.id,
+            )
+        )
+    )
+    if already_in_round:
+        return
     ok = await _send_one_push(bot, telegram_user_id=user.telegram_user_id, code=round_row.code)
     if ok:
         setattr(user, col.key, now_naive)
@@ -179,11 +188,16 @@ async def process_due_tour_start_pushes(bot: Bot) -> None:
         rounds = [x for x in r.scalars().all() if now_naive >= x.starts_at]
         for rnd in rounds:
             col = _sent_column(rnd.code)
+            has_round_progress = exists().where(
+                UserRoundProgress.user_id == User.id,
+                UserRoundProgress.round_id == rnd.id,
+            )
             q = await session.execute(
                 select(User)
                 .where(
                     *eligible_user_base_stmt(),
                     col.is_(None),
+                    ~has_round_progress,
                 )
                 .order_by(User.id.asc())
             )

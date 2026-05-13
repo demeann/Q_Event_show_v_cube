@@ -4,7 +4,7 @@
 
     cd Q_Event_show_v_cube && source .venv/bin/activate
     export PYTHONPATH=.
-    python -m scripts.reset_user_by_telegram 201343602
+    python -m scripts.reset_user_by_telegram 1101149630
 
 После сброса в Telegram: /start — снова приветствие и ввод почты.
 """
