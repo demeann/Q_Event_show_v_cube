@@ -1,4 +1,4 @@
-"""Идемпотентный сидер: туры (старт 10:00 МСК в первый день окна), вопросы."""
+"""Идемпотентный сидер: туры (старт 10:00 МСК в первый день окна), вопросы.
 
 Запуск из корня репозитория::
 
@@ -33,7 +33,7 @@ def _load_yaml(name: str) -> dict[str, Any]:
 
 
 def _msk_range_to_utc_naive(start_day: date, end_day: date) -> tuple:
-    """Переводит «первый день тура (старт 10:00 МСК) … последний день» в naive UTC."""
+    """Первый день тура (старт 10:00 МСК) -- последний день; naive UTC для БД."""
     start_utc = to_utc(msk_at(start_day, 10, 0)).replace(tzinfo=None)
     end_utc = to_utc(msk_day_end(end_day)).replace(tzinfo=None)
     return start_utc, end_utc
