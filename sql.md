@@ -42,7 +42,7 @@ PYTHONPATH=. python -m scripts.seed_content
 MySQL с сервера (учётка как в `.env` приложения):
 
 ```bash
-mysql -u qclub_bot -p -h 127.0.0.1 ИМЯ_БАЗЫ
+mysql -u qclub_bot -p -h 127.0.0.1 qclub_dev
 # в консоли mysql: USE ИМЯ_БАЗЫ;
 ```
 
@@ -359,6 +359,24 @@ LIMIT 1;
 
 ---
 
+## Перед боевым запуском (после тестов на той же БД)
+
+1. Сделай **бэкап** MySQL (дамп или снимок хостера).
+2. На сервере в каталоге проекта:
+
+```bash
+cd ~/q_event_show_v_cube/Q_Event_show_v_cube && source .venv/bin/activate
+export PYTHONPATH=.
+python -m scripts.prelaunch_clean --yes              # сброс игры и рассылок, users остаются
+python -m scripts.prelaunch_clean --yes --purge-users   # плюс все users и email_validation_log
+python -m scripts.seed_content
+sudo systemctl restart qclub-bot.service   # или как у тебя называется юнит
+```
+
+Без `--yes` скрипт только печатает счётчики и выходит с кодом 1.
+
+---
+
 ## Полный сброс игровых данных для **всех** пользователей (осторожно)
 
 Стирает ответы, прогресс по турам/темам, очереди и историю **рассылок** (`broadcasts` / `broadcast_recipients`), **отборы победителей** (`winner_selections` и связанные `winners`).
@@ -373,6 +391,8 @@ export PYTHONPATH=.
 python -m scripts.reset_all_game_state          # только статистика таблиц
 python -m scripts.reset_all_game_state --yes    # реальное удаление
 ```
+
+То же по таблицам делает шаг по умолчанию у `prelaunch_clean` (см. раздел выше).
 
 Вручную в MySQL (порядок важен из‑за внешних ключей; строки `winners` уходят каскадом при удалении `winner_selections`, получатели рассылок — при удалении `broadcasts`, если в БД так настроен CASCADE):
 
@@ -407,7 +427,7 @@ COMMIT;
 
 ```sql
 -- Замени 123456789 на реальный telegram_user_id из Telegram
-SET @uid := (SELECT id FROM users WHERE telegram_user_id = 123456789 LIMIT 1);
+SET @uid := (SELECT id FROM users WHERE telegram_user_id = 1101149630 LIMIT 1);
 
 SELECT @uid AS user_id_check;  -- если NULL — пользователя нет, DELETE не выполняй
 
@@ -422,7 +442,7 @@ DELETE FROM winners WHERE user_id = @uid;
 Если нужно заново получить код на email **без смены аккаунта**:
 
 ```sql
-SET @uid := 2;  -- users.id
+SET @uid := 1;  -- users.id
 
 UPDATE users
 SET email_verified_at = NULL
@@ -437,11 +457,11 @@ WHERE id = @uid;
 
 ```sql
 -- Проверка
-SELECT id, telegram_user_id, email FROM users WHERE telegram_user_id = 296537944;
-SELECT id, code FROM rounds WHERE code = 'R2';
+SELECT id, telegram_user_id, email FROM users WHERE telegram_user_id = 1101149630;
+SELECT id, code FROM rounds WHERE code = 'R1';
 
-SET @uid = (SELECT id FROM users WHERE telegram_user_id = 296537944 LIMIT 1);
-SET @rid = (SELECT id FROM rounds WHERE code = 'R2' LIMIT 1);
+SET @uid = (SELECT id FROM users WHERE telegram_user_id = 1101149630 LIMIT 1);
+SET @rid = (SELECT id FROM rounds WHERE code = 'R1' LIMIT 1);
 SELECT @uid AS user_id, @rid AS round2_id;
 
 DELETE FROM user_answers WHERE user_id = @uid AND round_id = @rid;

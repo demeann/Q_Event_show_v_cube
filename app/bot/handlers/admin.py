@@ -139,7 +139,7 @@ async def _answer_stats(message: Message) -> None:
             w_ok = "да" if w_id else "нет"
             lines.append(
                 f"{code.value}: прогресс <b>{n_prog}</b>, победители выбраны: <b>{w_ok}</b> "
-                f"({sa} … {ea})"
+                f"(UTC: <code>{sa}</code> … <code>{ea}</code>)"
             )
 
     await message.answer("\n".join(lines), parse_mode="HTML")

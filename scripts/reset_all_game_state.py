@@ -13,6 +13,8 @@
     python -m scripts.reset_all_game_state --yes
 
 Без флага ``--yes`` скрипт только выведет текущие счётчики и выйдет с кодом 1.
+
+Перед боевым запуском с нулевой аудиторией см. ``scripts.prelaunch_clean``.
 """
 
 from __future__ import annotations
@@ -21,38 +23,15 @@ import argparse
 import asyncio
 import sys
 
-from sqlalchemy import delete, func, select
+from app.services.game_state_reset import count_player_activity_rows, delete_all_player_activity
 
 
 async def _run(*, do_delete: bool) -> int:
     from app.db.base import dispose_engine, get_session
-    from app.db.models import (
-        Broadcast,
-        BroadcastRecipient,
-        UserAnswer,
-        UserRoundProgress,
-        UserTopicProgress,
-        Winner,
-        WinnerSelection,
-    )
-
-    models_order: list = [
-        UserAnswer,
-        UserTopicProgress,
-        UserRoundProgress,
-        BroadcastRecipient,
-        Broadcast,
-        Winner,
-        WinnerSelection,
-    ]
 
     try:
         async with get_session() as session:
-            before: dict[str, int] = {}
-            for m in models_order:
-                key = m.__tablename__
-                c = await session.scalar(select(func.count()).select_from(m))
-                before[key] = int(c or 0)
+            before = await count_player_activity_rows(session)
 
             print("Текущее количество строк:")
             for k, v in before.items():
@@ -68,15 +47,10 @@ async def _run(*, do_delete: bool) -> int:
                 return 1
 
             if total == 0:
-                print("\nУже пусто, удалять нечего.")
+                print("\nУже пусто, удалать нечего.")
                 return 0
 
-            await session.execute(delete(BroadcastRecipient))
-            await session.execute(delete(Broadcast))
-            await session.execute(delete(WinnerSelection))
-            await session.execute(delete(UserAnswer))
-            await session.execute(delete(UserTopicProgress))
-            await session.execute(delete(UserRoundProgress))
+            await delete_all_player_activity(session)
             await session.commit()
 
             print("\nГотово: игровые данные всех пользователей очищены.")
