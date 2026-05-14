@@ -1,4 +1,4 @@
-"""Три стартовых пуша: в момент старта тура (и сразу после верификации, если тур уже начался)."""
+"""Стартовые пуши туров: сразу после почты для R1 и по расписанию в окне тура."""
 
 from __future__ import annotations
 
@@ -127,6 +127,34 @@ async def _send_one_push(
         return False
 
 
+async def send_r1_intro_immediately_after_email_verified(
+    bot: Bot, *, telegram_user_id: int
+) -> None:
+    """Подряд после текста «Конкурс в кубе»: интро R1 с кнопкой.
+
+    Без проверок окна тура и без проверки ``tour_push_r1_sent_at`` / прогресса.
+    После успешной отправки выставляет ``tour_push_r1_sent_at``, чтобы фоновый
+    джоб не прислал то же второй раз.
+    """
+    async with get_session() as session:
+        user = await session.scalar(
+            select(User).where(User.telegram_user_id == telegram_user_id)
+        )
+        if user is None or user.is_blocked:
+            return
+        if (
+            await session.scalar(
+                select(Round.id).where(Round.code == RoundCode.R1).limit(1)
+            )
+            is None
+        ):
+            log.warning("r1 intro after email: нет тура R1 в БД")
+            return
+        ok = await _send_one_push(bot, telegram_user_id=user.telegram_user_id, code=RoundCode.R1)
+        if ok:
+            user.tour_push_r1_sent_at = now_utc().replace(tzinfo=None)
+
+
 async def try_send_tour_push_for_user(
     session: AsyncSession,
     bot: Bot,
@@ -134,7 +162,7 @@ async def try_send_tour_push_for_user(
     user_id: int,
     round_row: Round,
 ) -> None:
-    """Отправить пуш тура, если пора и ещё не отправляли."""
+    """Отправить пуш тура (фон), если сейчас в окне тура и ещё не отправляли."""
     user = await session.get(User, user_id)
     if user is None or user.is_blocked:
         return
@@ -160,26 +188,6 @@ async def try_send_tour_push_for_user(
     if ok:
         setattr(user, col.key, now_naive)
         await session.flush()
-
-
-async def deliver_pending_tour_pushes_for_user(bot: Bot, *, telegram_user_id: int) -> None:
-    """После верификации: туры в активном окне, по которым пуш ещё не слали."""
-    async with get_session() as session:
-        r = await session.execute(
-            select(Round)
-            .where(Round.code.in_(_ALL_ROUNDS))
-            .order_by(Round.starts_at.asc())
-        )
-        rounds = list(r.scalars().all())
-        user = await session.scalar(
-            select(User).where(User.telegram_user_id == telegram_user_id)
-        )
-        if user is None:
-            return
-        for rnd in rounds:
-            await try_send_tour_push_for_user(
-                session, bot, user_id=user.id, round_row=rnd
-            )
 
 
 async def process_due_tour_start_pushes(bot: Bot) -> None:

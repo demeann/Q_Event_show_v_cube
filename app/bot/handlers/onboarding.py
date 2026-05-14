@@ -16,7 +16,7 @@ from app.core.config import get_settings
 from app.db.base import get_session
 from app.db.models import EmailValidationLog
 from app.services.email_validation import check_corporate_email
-from app.services.tour_start_push import deliver_pending_tour_pushes_for_user
+from app.services.tour_start_push import send_r1_intro_immediately_after_email_verified
 from app.services.user_service import get_or_create_user
 
 log = logging.getLogger(__name__)
@@ -185,7 +185,7 @@ async def process_email(message: Message, state: FSMContext) -> None:
     await state.clear()
     await message.answer(_EMAIL_ACCEPTED)
     if message.bot is not None and message.from_user is not None:
-        await deliver_pending_tour_pushes_for_user(
+        await send_r1_intro_immediately_after_email_verified(
             message.bot, telegram_user_id=message.from_user.id
         )
 
