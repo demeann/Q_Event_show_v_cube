@@ -45,17 +45,17 @@ def _round_windows(game_start_msk: date) -> dict[RoundCode, tuple[str, date, dat
         RoundCode.R1: (
             "Кто хочет стать миллионером",
             game_start_msk,
-            add_days(game_start_msk, 2),
+            add_days(game_start_msk, 3),
         ),
         RoundCode.R2: (
             "Своя игра",
-            add_days(game_start_msk, 3),
-            add_days(game_start_msk, 5),
+            add_days(game_start_msk, 4),
+            add_days(game_start_msk, 6),
         ),
         RoundCode.R3: (
             "Где логика",
-            add_days(game_start_msk, 6),
-            add_days(game_start_msk, 8),
+            add_days(game_start_msk, 7),
+            add_days(game_start_msk, 9),
         ),
     }
 
